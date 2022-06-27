@@ -1,0 +1,196 @@
+
+```{r}
+library(Biobase)
+library(GEOquery)
+
+#Loading a GDS file with GEOquery
+dat <- getGEO('GSE161986', destdir=".")
+
+```
+```{r}
+dat <- dat[["GSE161986_series_matrix.txt.gz"]]
+```
+
+```{r}
+edata <- dat@assayData[["exprs"]]
+edata <- edata[rowMeans(edata) > 10, ]
+edata <- t(scale(t(edata), scale=FALSE, center=TRUE))
+View(edata)
+```
+
+```{r}
+try <- cor(edata)
+
+```
+
+```{r}
+View(try)
+```
+
+```{r}
+library(RColorBrewer)
+library(gplots)
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+meta <- dat@phenoData@data
+try2 <- data.table(try, meta$characteristics_ch1.1)
+
+```
+
+
+
+```{r}
+get_int <- function(x){
+  
+  temp <- substr(x, nchar(x)-1, nchar(x))
+  strtoi(temp)
+}
+x<- meta$characteristics_ch1.2
+x <- as.matrix(x)
+ints <- apply(x, 1, get_int)
+
+```
+
+```{r}
+age_groups <- function(x){
+  
+  if (35<x & x < 45) {
+    a <- "age: 35-44"
+  } else if (44<x & x <55){
+    a <- "age: 45-54"
+    
+  } else if (54<x & x <65){
+    a <- "age: 55-64"
+    
+  } else if (64<x & x <75){
+    a <- "age: 65-74"
+    
+  } else {
+    a <- "age: 75+"
+    
+  }
+  
+  
+  
+}
+
+ints <- as.matrix(ints)
+ages <- apply(ints, 1, age_groups)
+ages
+```
+
+
+```{r}
+try2$ages <- ages
+```
+
+
+
+
+```{r}
+group_by_type <- function(x) {
+  
+  if (x == "diagnosis: Control"){
+    
+    y <- 0
+  } else {
+    
+    y <- 1
+  }
+  
+}
+grouped <- apply(as.matrix(try2$V2), 1, group_by_type)
+grouped
+```
+```{r}
+
+only_alcohol <- function(data, vector) {
+  cols <- colnames(data)
+  tab <- data.frame(a = 1:dim(data)[1])
+  
+  for (i in 1:length(vector)) {
+    
+    if (vector[i] == 1){
+      a <- cols[i]
+      tab[a] <- data[,i]
+      
+    } 
+    
+  }
+  return(tab)
+  
+  
+}
+
+al <- only_alcohol(edata, grouped)
+al <- subset (al, select = -a)
+
+```
+
+```{r}
+only_control <- function(data, vector) {
+  cols <- colnames(data)
+  tab <- data.frame(a = 1:dim(data)[1])
+  
+  for (i in 1:length(vector)) {
+    
+    if (vector[i] == 0){
+      a <- cols[i]
+      tab[a] <- data[,i]
+      
+    } 
+    
+  }
+  return(tab)
+  
+  
+}
+
+con <- only_control(edata, grouped)
+con <- subset (con, select = -a)
+```
+
+```{r}
+means_total <- apply(edata, 1, mean)
+means_alcohol <- apply(al, 1, mean)
+means_control <- apply(con, 1, mean)
+```
+
+```{r}
+head(means_alcohol, 10)
+head(means_control, 10)
+head(means_total, 10)
+```
+
+
+
+```{r}
+diff <- means_alcohol - means_control
+
+
+tail(sort(diff),5)
+#214271_x_at, 208549_x_at, 217491_x_at, 204301_at, 212199_at
+
+head(sort(diff),5)
+
+#204337_at, 219521_at, 212967_x_at, 205202_at, 205751_at
+
+```
+```{r}
+View(try2)
+```
+
+```{r}
+library(annotate)
+library(hgu133plus2.db)
+select(hgu133plus2.db, c("214271_x_at", "208549_x_at", "217491_x_at", "204301_at", "212199_at"), c("SYMBOL","ENTREZID", "GENENAME"))
+
+```
+
+```{r}
+select(hgu133plus2.db, c("204337_at", "219521_at", "212967_x_at", "205202_at", "205751_at"), c("SYMBOL","ENTREZID", "GENENAME"))
+```
+

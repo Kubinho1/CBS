@@ -1,0 +1,261 @@
+```{r}
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+ 
+#BiocManager::install("Biobase")
+#BiocManager::install("GEOquery")
+#BiocManager::install("hgu133plus2.db")
+```
+
+```{r}
+library(Biobase)
+library(GEOquery)
+```
+
+```{r}
+#Loading a GDS file with GEOquery
+dat <- getGEO('GSE161986', destdir=".")
+
+# lets look at the class and the mode of this variable, dat
+class(dat)
+```
+
+```{r}
+dat <- dat[["GSE161986_series_matrix.txt.gz"]]
+```
+
+```{r}
+#attributes(dat)
+
+#View(dat@assayData[["exprs"]])
+```
+
+```{r}
+#View(dat@phenoData@data)
+```
+
+```{r}
+edata <- dat@assayData[["exprs"]]
+edata <- edata[rowMeans(edata) > 10, ]
+```
+
+```{r}
+#View(edata)
+```
+
+
+```{r}
+library(RColorBrewer)
+library(gplots)
+library(data.table)
+library(ggplot2)
+library(patchwork)
+```
+```{r}
+my_palette <- colorRampPalette(c("blue", "white", "orange"))(n = 299)
+
+png("drugs_heatmap_raw.png",height=900,width=1600)
+heatmap.2(edata,
+          main = "Alcohol", # heat map title
+          notecol="black",      # change font color of cell labels to black
+          density.info="none",  # turns off density plot inside color legend
+          trace="none",         # turns off trace lines inside the heat map
+          margins =c(12,9),     # widens margins around plot
+          col=my_palette,       # use on color palette defined earlier 
+          dendrogram="none",     # only draw a row dendrogram
+          scale = "row",
+          Colv=FALSE)
+dev.off()
+```
+
+```{r}
+png("drugs_heatmap_clustered.png",height=900,width=1600)
+heatmap.2(edata,
+          main = "Alcohol", # heat map title
+          notecol="black",      # change font color of cell labels to black
+          density.info="none",  # turns off density plot inside color legend
+          trace="none",         # turns off trace lines inside the heat map
+          margins =c(12,9),     # widens margins around plot
+          col=my_palette,       # use on color palette defined earlier 
+          dendrogram="none",     # only draw a row dendrogram
+          scale = "row")
+dev.off()
+
+
+```
+
+```{r}
+edata <- t(scale(t(edata), scale=FALSE, center=TRUE))
+svd.out <- svd(edata)
+names(svd.out)
+```
+
+```{r}
+print(paste("Dimension of left singular vectors:", dim(svd.out$u)))
+print(paste("Length of singular values:",length(svd.out$d)))
+print(paste("Dimension of right singular vectors:",dim(svd.out$v)))
+```
+```{r}
+par(mfrow=c(1,2))
+plot(svd.out$d, pch=20, ylab="Singular values")
+plot(svd.out$d^2/sum(svd.out$d^2)*100, pch=20, ylab="% variance explained")
+```
+```{r}
+plot(1:ncol(edata), svd.out$v[,1],pch=20)
+```
+```{r}
+meta <- dat@phenoData@data
+PC = data.table(svd.out$v,meta)
+ggplot(PC) + geom_point(aes(x=V1, y=V2, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V1, y=V3, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V2, y=V3, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V1, y=V4, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V2, y=V4, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V3, y=V4, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V1, y=V5, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V2, y=V5, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V3, y=V5, col=as.factor(characteristics_ch1.1)))
+ggplot(PC) + geom_point(aes(x=V4, y=V5, col=as.factor(characteristics_ch1.1)))
+
+```
+```{r}
+ggplot(PC) + geom_point(aes(x=V1, y=V2, col=as.factor(characteristics_ch1.2)))
+```
+
+```{r}
+get_int <- function(x){
+  
+  temp <- substr(x, nchar(x)-1, nchar(x))
+  strtoi(temp)
+}
+x<- PC$characteristics_ch1.2
+x <- as.matrix(x)
+ints <- apply(x, 1, get_int)
+
+```
+
+```{r}
+age_groups <- function(x){
+  
+  if (35<x & x < 45) {
+    a <- "age: 35-44"
+  } else if (44<x & x <55){
+    a <- "age: 45-54"
+    
+  } else if (54<x & x <65){
+    a <- "age: 55-64"
+    
+  } else if (64<x & x <75){
+    a <- "age: 65-74"
+    
+  } else {
+    a <- "age: 75+"
+    
+  }
+  
+  
+  
+}
+
+ints <- as.matrix(ints)
+ages <- apply(ints, 1, age_groups)
+ages
+```
+```{r}
+PC$ages <- ages
+```
+
+```{r}
+ggplot(PC) + geom_point(aes(x=V1, y=V2, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V1, y=V3, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V2, y=V3, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V1, y=V4, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V2, y=V4, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V3, y=V4, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V1, y=V5, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V2, y=V5, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V3, y=V5, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+ggplot(PC) + geom_point(aes(x=V4, y=V5, col=as.factor(ages))) + 
+                          scale_color_manual(values = c(
+                                "age: 35-44" = "red",
+                                "age: 45-54" = "blue", 
+                                "age: 55-64" = "black",
+                                "age: 65-74" = "green",
+                                "age: 75+" = "white"))
+
+
+
+
+```
+
+```{r}
+ggplot(PC) + geom_boxplot(aes(x=as.factor(characteristics_ch1.1), y=V1))
+ggplot(PC) + geom_violin(aes(x=as.factor(characteristics_ch1.1), y=V1),draw_quantiles = c(0.25, 0.5, 0.75))
+```
+```{r}
+# compute PCs using prcomp and compare it with SVD
+pc1 = prcomp(edata)
+plot(pc1$rotation[,1],svd.out$v[,1])
+```
+
+```{r}
+edata.col <- scale(edata, scale=FALSE, center=TRUE)
+svd.col <- svd(edata.col)
+plot(pc1$rotation[,1],svd.col$v[,1],col=2)
+abline(0,1)
+```
+
